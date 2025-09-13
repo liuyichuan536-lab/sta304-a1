@@ -1,0 +1,180 @@
+```{r}
+#| label: setup
+#| include: false
+set.seed(304)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(scales)
+library(ggplot2)
+library(forcats)
+library(janitor)
+library(gt)
+```
+
+
+```{r}
+n <- 320
+
+grade <- sample(c("G9","G10","G11","G12"), n, replace=TRUE, prob=c(0.28,0.26,0.24,0.22))
+region <- sample(c("GTA","Rest of Ontario","Outside Ontario"), n, replace=TRUE, prob=c(0.64,0.33,0.03))
+pathway <- sample(c("Mainstream","AP","IB","Undecided"), n, replace=TRUE, prob=c(0.58,0.23,0.14,0.05))
+
+# Prior exposure & familiarity
+read_section <- rbinom(n, 1, ifelse(grade %in% c("G11","G12"), 0.65, 0.45))
+familiarity <- pmin(pmax(round(rnorm(n, mean = ifelse(pathway %in% c("AP","IB"), 3.6, 3.0), sd=1)),1),5)
+
+# Likert helper
+likert_draw <- function(mu, sd=1.0){
+  p <- 1:5
+  sapply(mu, function(m){
+    w <- dnorm(p, mean=m, sd=sd)
+    w <- w / sum(w)   
+    sample(p, 1, prob=w)
+  })
+}
+# Construct means: AP/IB students tend to rate “comparison clarity” higher,
+# Mainstream students may value balance; seniors emphasise rigor/credits
+mu_help   <- 3.4 + 0.4*(pathway %in% c("AP","IB")) + 0.2*(grade %in% c("G11","G12"))
+mu_rigor  <- 3.3 + 0.3*(grade %in% c("G11","G12"))
+mu_decide <- 3.2 + 0.5*(read_section==1)
+mu_credit <- 3.1 + 0.5*(pathway %in% c("AP","IB"))
+mu_fair   <- 3.3 # target balance
+```
+
+
+```{r}
+q6_helpfulness   <- likert_draw(mu_help)
+q7_rigor_clarity <- likert_draw(mu_rigor)
+q8_decision      <- likert_draw(mu_decide)
+q9_credit_info   <- likert_draw(mu_credit)
+q10_fair_balance <- likert_draw(mu_fair)
+
+q11_need <- sample(
+  c("Checklist side-by-side","Stress/Time templates","AP/IB recognition (ON universities)",
+    "Student case studies","Switching paths in Gr 11/12"),
+  n, replace=TRUE, prob=c(0.24,0.18,0.26,0.20,0.12)
+)
+
+stars_overall <- pmin(pmax(round(rnorm(n, mean = (q6_helpfulness+q8_decision)/2*0.8, sd=0.8)),1),5)
+
+dat_raw <- tibble(
+  id = 1:n, grade, region, pathway,
+  read_section = factor(read_section, levels=c(0,1), labels=c("No/Unsure","Yes")),
+  familiarity = as.integer(familiarity),
+  q6_helpfulness = as.integer(q6_helpfulness),
+  q7_rigor_clarity = as.integer(q7_rigor_clarity),
+  q8_decision = as.integer(q8_decision),
+  q9_credit_info = as.integer(q9_credit_info),
+  q10_fair_balance = as.integer(q10_fair_balance),
+  q11_need,
+  stars_overall = as.integer(stars_overall)
+)
+```
+
+
+```{r}
+# --- Cleaning (human-readable) ---
+dat <- dat_raw %>%
+  clean_names() %>%
+  mutate(
+    grade = factor(grade, levels=c("G9","G10","G11","G12")),
+    pathway = fct_relevel(factor(pathway), "Mainstream","AP","IB","Undecided"),
+    helpful_bin = q6_helpfulness >= 4  # primary analysis: ≥4 = “helpful”
+  )
+```
+
+
+```{r}
+# --- Table: Helpful (≥4) by pathway (mean score & proportion helpful) ---
+tab <- dat %>%
+  group_by(pathway) %>%
+  summarise(
+    n = n(),
+    mean_helpfulness = mean(q6_helpfulness),
+    pct_helpful = mean(helpful_bin)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    mean_helpfulness = round(mean_helpfulness, 2),
+    pct_helpful = percent(pct_helpful, accuracy=0.1)
+  )
+
+gt(tab) |>
+  tab_header(title = "Helpfulness of AP/IB/Mainstream Comparison (by Pathway)") |>
+  cols_label(
+    pathway = "Pathway", n = "N",
+    mean_helpfulness = "Mean (1–5)",
+    pct_helpful = "Proportion ≥4"
+  )
+```
+
+
+```{r}
+# --- Plot: Proportion “Helpful (≥4)” by pathway ---
+plot_dat <- dat %>%
+  group_by(pathway) %>%
+  summarise(p = mean(helpful_bin)) %>%
+  mutate(pathway = fct_reorder(pathway, p))
+
+ggplot(plot_dat, aes(x=pathway, y=p)) +
+  geom_col() +
+  geom_text(aes(label = percent(p, accuracy=0.1)), vjust = -0.3) +
+  scale_y_continuous(labels = percent_format(), limits = c(0,1)) +
+  labs(title="Share Rating the Comparison as Helpful (≥4)", x=NULL, y="Proportion") +
+  theme_minimal(base_size = 12)
+```
+
+
+```{r}
+# --- Table: Helpful (≥4) by pathway (mean score & proportion helpful) ---
+tab <- dat %>%
+  group_by(pathway) %>%
+  summarise(
+    n = n(),
+    mean_helpfulness = mean(q6_helpfulness),
+    pct_helpful = mean(helpful_bin)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    mean_helpfulness = round(mean_helpfulness, 2),
+    pct_helpful = percent(pct_helpful, accuracy=0.1)
+  )
+
+gt(tab) |>
+  tab_header(title = "Helpfulness of AP/IB/Mainstream Comparison (by Pathway)") |>
+  cols_label(
+    pathway = "Pathway", n = "N",
+    mean_helpfulness = "Mean (1–5)",
+    pct_helpful = "Proportion ≥4"
+  )
+```
+
+
+```{r}
+# --- 95% CI for overall helpfulness (Wilson) ---
+prop_ci_wilson <- function(x, n, conf=0.95){
+  z <- qnorm(1 - (1 - conf)/2)
+  p <- x/n
+  denom <- 1 + z^2/n
+  center <- (p + z^2/(2*n))/denom
+  half <- (z * sqrt((p*(1-p) + z^2/(4*n))/n))/denom
+  c(lower = center - half, upper = center + half, p = p, n = n)
+}
+
+ci <- with(dat, prop_ci_wilson(sum(helpful_bin), nrow(dat), 0.95))
+
+gt(
+  tibble(
+    Metric = "Proportion rating comparison as Helpful (≥4)",
+    N = as.integer(ci["n"]),
+    Estimate = percent(ci["p"], accuracy=0.1),
+    CI95_Lower = percent(ci["lower"], accuracy=0.1),
+    CI95_Upper = percent(ci["upper"], accuracy=0.1)
+  )
+) |>
+  tab_header(title = "95% CI for Overall Helpfulness (Wilson)")
+
+# --- Appendix glimpse (first 10 rows) ---
+head(dat, 10)
+```
