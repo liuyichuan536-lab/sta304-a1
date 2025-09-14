@@ -127,31 +127,6 @@ ggplot(plot_dat, aes(x=pathway, y=p)) +
 
 
 ```{r}
-# --- Table: Helpful (≥4) by pathway (mean score & proportion helpful) ---
-tab <- dat %>%
-  group_by(pathway) %>%
-  summarise(
-    n = n(),
-    mean_helpfulness = mean(q6_helpfulness),
-    pct_helpful = mean(helpful_bin)
-  ) %>%
-  ungroup() %>%
-  mutate(
-    mean_helpfulness = round(mean_helpfulness, 2),
-    pct_helpful = percent(pct_helpful, accuracy=0.1)
-  )
-
-gt(tab) |>
-  tab_header(title = "Helpfulness of AP/IB/Mainstream Comparison (by Pathway)") |>
-  cols_label(
-    pathway = "Pathway", n = "N",
-    mean_helpfulness = "Mean (1–5)",
-    pct_helpful = "Proportion ≥4"
-  )
-```
-
-
-```{r}
 # --- 95% CI for overall helpfulness (Wilson) ---
 prop_ci_wilson <- function(x, n, conf=0.95){
   z <- qnorm(1 - (1 - conf)/2)
