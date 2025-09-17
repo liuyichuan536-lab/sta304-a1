@@ -1,4 +1,5 @@
 ```{r}
+# part(4)
 #| label: setup
 #| include: false
 set.seed(304)
@@ -78,6 +79,7 @@ dat_raw <- tibble(
 
 
 ```{r}
+# part(5)
 #  Clean and preprocess data:
 # - Clean column names (janitor::clean_names)
 # - Convert 'grade' and 'pathway' to factors with specific levels
