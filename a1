@@ -118,6 +118,7 @@ grade_plot
 
 
 ```{r}
+# part(5)
 # Create summary table of helpfulness by pathway:
 # - n: count per pathway
 # - mean_helpfulness: average Q6 score
@@ -194,7 +195,6 @@ need_plot <- dat %>%
 need_plot
 ```
 
-
 ```{r}
 # --- Plot: Proportion “Helpful (≥4)” by pathway ---
 plot_dat <- dat %>%
@@ -210,7 +210,6 @@ ggplot(plot_dat, aes(x=pathway, y=p)) +
   labs(title="Share Rating the Comparison as Helpful (≥4)", x=NULL, y="Proportion") +
   theme_minimal(base_size = 12)
 ```
-
 
 ```{r}
 # --- 95% CI for overall helpfulness (Wilson) ---
@@ -274,24 +273,3 @@ cor_plot <- cor_matrix %>%
 cor_plot
 ```
 
-```{r}
-# Dual grouping analysis by grade and pathway
-grade_path_plot <- dat %>%
-  group_by(grade, pathway) %>%
-  summarise(mean_help = mean(q6_helpfulness, na.rm = TRUE),
-            n = n()) %>%
-  filter(n > 5) %>% # Only show groups with sufficient sample size
-  ggplot(aes(x = grade, y = mean_help, fill = pathway)) +
-  geom_col(position = position_dodge(0.8), width = 0.7) +
-  geom_text(aes(label = round(mean_help, 1)),
-            position = position_dodge(0.8), vjust = -0.5, size = 3) + 
-  labs(title = "Average Helpfulness Rating by Grade and Pathway",
-       x = "Grade",
-       y = "Average Rating (1-5)",
-       fill = "Course Pathway") +
-  ylim(0, 5) +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))
-
-grade_path_plot
-```
