@@ -79,8 +79,9 @@ dat_raw <- tibble(
 ```
 
 
+
 ```{r}
-# part(5)
+# part(4)
 #  Clean and preprocess data:
 # - Clean column names (janitor::clean_names)
 # - Convert 'grade' and 'pathway' to factors with specific levels
@@ -93,6 +94,7 @@ dat <- dat_raw %>%
     helpful_bin = q6_helpfulness >= 4  # primary analysis: ≥4 = “helpful”
   )
 ```
+
 
 ```{r}
 # Grade distribution map
