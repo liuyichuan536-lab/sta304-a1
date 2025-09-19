@@ -1,0 +1,75 @@
+```{r}
+# part(5)
+# Create summary table of helpfulness by pathway:
+# - n: count per pathway
+# - mean_helpfulness: average Q6 score
+# - pct_helpful: proportion with helpful_bin == TRUE
+tab <- dat %>%
+  group_by(pathway) %>%
+  summarise(
+    n = n(),
+    mean_helpfulness = mean(q6_helpfulness),
+    pct_helpful = mean(helpful_bin)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    mean_helpfulness = round(mean_helpfulness, 2),
+    pct_helpful = percent(pct_helpful, accuracy=0.1)
+  )
+
+# Format the summary table using gt
+gt(tab) |>
+  tab_header(title = "Helpfulness of AP/IB/Mainstream Comparison (by Pathway)") |>
+  cols_label(
+    pathway = "Pathway", n = "N",
+    mean_helpfulness = "Mean (1–5)",
+    pct_helpful = "Proportion ≥4"
+  )
+```
+
+```{r}
+# --- Plot: Proportion “Helpful (≥4)” by pathway ---
+plot_dat <- dat %>%
+  group_by(pathway) %>%
+  summarise(p = mean(helpful_bin)) %>%
+  mutate(pathway = fct_reorder(pathway, p))
+
+# Create a bar plot of proportion helpful by pathway
+ggplot(plot_dat, aes(x=pathway, y=p)) +
+  geom_col() +
+  geom_text(aes(label = percent(p, accuracy=0.1)), vjust = -0.3) +
+  scale_y_continuous(labels = percent_format(), limits = c(0,1)) +
+  labs(title="Share Rating the Comparison as Helpful (≥4)", x=NULL, y="Proportion") +
+  theme_minimal(base_size = 12)
+```
+
+```{r}
+# --- 95% CI for overall helpfulness (Wilson) ---
+prop_ci_wilson <- function(x, n, conf=0.95){
+  z <- qnorm(1 - (1 - conf)/2)
+  p <- x/n
+  denom <- 1 + z^2/n
+  center <- (p + z^2/(2*n))/denom
+  half <- (z * sqrt((p*(1-p) + z^2/(4*n))/n))/denom
+  c(lower = center - half, upper = center + half, p = p, n = n)
+}
+
+# Calculate Wilson CI for the overall proportion of helpful responses
+ci <- with(dat, prop_ci_wilson(sum(helpful_bin), nrow(dat), 0.95))
+
+# Create a table displaying the Wilson CI results
+gt(
+  tibble(
+    Metric = "Proportion rating comparison as Helpful (≥4)",
+    N = as.integer(ci["n"]),
+    Estimate = percent(ci["p"], accuracy=0.1),
+    CI95_Lower = percent(ci["lower"], accuracy=0.1),
+    CI95_Upper = percent(ci["upper"], accuracy=0.1)
+  )
+) |>
+  tab_header(title = "95% CI for Overall Helpfulness (Wilson)")
+
+# --- Appendix glimpse (first 10 rows) ---
+head(dat, 10)
+```
+
